@@ -6,7 +6,7 @@ import 'dart:math';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
-import 'package:uuid/uuid.dart'; // Add uuid package for generating merchantTxnId
+// import 'package:uuid/uuid.dart'; // Add uuid package for generating merchantTxnId
 
 void main() {
   runApp(const MyApp());
@@ -53,16 +53,18 @@ class _PayPageState extends State<PayPage> with SingleTickerProviderStateMixin {
   // static const String jwtPaymentUrl = 'http://localhost:3000/api/pay/jwt';
 
 //ngrok for external url
-  static const String ngrokUrl = 'https://ff6d-31-13-189-18.ngrok-free.app';
+  // static const String ngrokUrl = 'https://ff6d-31-13-189-18.ngrok-free.app';
+  static const String ngrokUrl = 'https://28c1-2401-4900-1f24-3aa8-6cfa-4d3a-d55-953c.ngrok-free.app';
 
   // API URLs dynamically constructed using the ngrok base URL
   static String get jwtPaymentUrl => '$ngrokUrl/api/pay/jwt';
   static String get apiKeyPaymentUrl => '$ngrokUrl/api/pay/apikey';
   // Merchant Unique ID provided by PayGlocal (replace with your actual merchant ID)
 
-  static String get merchantCallbackUrlIs => '$ngrokUrl/callback';
+  static String get merchantCallbackUrlIs =>
+      'https://api.uat.payglocal.in/gl/v1/payments/merchantCallback';
 
-  static const String merchantUniqueId = 'testnewgcc26';
+  // static const String merchantUniqueId = 'testnewgcc26';
 
   @override
   void initState() {
@@ -82,48 +84,70 @@ class _PayPageState extends State<PayPage> with SingleTickerProviderStateMixin {
     super.dispose();
   }
 
+//ramdom merchant id generator
+
+  String generateMerchantTxnId() {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final random = Random();
+    final randomDigits =
+        List.generate(6, (_) => random.nextInt(10)).join(); // 6-digit suffix
+    return '$timestamp$randomDigits';
+  }
+
+  String generateMerchantUniqueId(
+      {String prefix = 'ABCD', String suffix = 'WXYZ'}) {
+    if (prefix.length > 4 || suffix.length > 4) {
+      throw ArgumentError(
+          'Prefix and suffix must each be up to 4 characters long');
+    }
+
+    const totalLength = 14;
+    final middleLength = totalLength - prefix.length - suffix.length;
+
+    final random = Random();
+    final randomMiddle =
+        List.generate(middleLength, (_) => random.nextInt(10)).join();
+
+    return '$prefix$randomMiddle$suffix';
+  }
+
+//api key based **********************************************************AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPPPPPPPPPPPPPPPPPPPPPPIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
   Future<void> _handleApiKeyPayment(
       String name, String email, String amount) async {
     try {
-      // Validate inputs
-      if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
-        throw Exception('Invalid email address');
-      }
-      final parsedAmount = double.tryParse(amount);
-      if (parsedAmount == null || parsedAmount <= 0) {
-        throw Exception('Invalid amount');
-      }
+      final merchantTxnId =
+          generateMerchantTxnId(); // Generate a unique merchant transaction ID
 
-      print('Sending API Key request to: $apiKeyPaymentUrl');
-      print('Request body: ${jsonEncode({
-            'name': name,
-            'email': email,
-            'amount': amount,
-          })}');
+      final payload = {
+        "merchantTxnId": merchantTxnId, // Add the merchantTxnId
+        "paymentData": {
+          "totalAmount": amount, // Amount passed to totalAmount
+          "txnCurrency": "INR", // Currency (INR assumed as static here)
+          "billingData": {
+            "emailId": email, // Email passed here
+          },
+        },
+        "merchantCallbackURL":
+            "https://api.uat.payglocal.in/gl/v1/payments/merchantCallback", // Static callback URL
+      };
 
-      final response = await http
-          .post(
-        Uri.parse(apiKeyPaymentUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'name': name,
-          'email': email,
-          'amount': amount,
-        }),
-      )
-          .timeout(const Duration(seconds: 10), onTimeout: () {
-        throw Exception('Request timed out');
-      });
-
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      final response = await http.post(
+        Uri.parse(
+            apiKeyPaymentUrl.trim()), // Replace with your actual backend URL
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(payload),
+      );
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         final paymentLink = responseData['payment_link'];
+
         if (paymentLink == null || paymentLink.isEmpty) {
-          throw Exception('No payment link received');
+          throw Exception('No payment link received.');
         }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -134,7 +158,7 @@ class _PayPageState extends State<PayPage> with SingleTickerProviderStateMixin {
             behavior: SnackBarBehavior.floating,
           ),
         );
-        // Redirect to payment link
+
         final paymentUri = Uri.parse(paymentLink);
         if (await canLaunchUrl(paymentUri)) {
           await launchUrl(paymentUri, mode: LaunchMode.externalApplication);
@@ -146,7 +170,7 @@ class _PayPageState extends State<PayPage> with SingleTickerProviderStateMixin {
         throw Exception(
             'Payment Failed: ${errorData['error'] ?? 'Unknown error'}');
       }
-    } on http.ClientException catch (e) {
+    } on http.ClientException {
       throw Exception(
           'Failed to connect to the server. Please check your network and try again.');
     } catch (error) {
@@ -155,38 +179,31 @@ class _PayPageState extends State<PayPage> with SingleTickerProviderStateMixin {
     }
   }
 
+//***********************************************************************jwt***********************************************************************************************************************************************
+
+// jwt based
   Future<void> _handleJwtPayment(
-      String name, String email, String amount) async {
-    try {
-      // Validate inputs
-      if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
-        throw Exception('Invalid email address');
-      }
-      final parsedAmount = double.tryParse(amount);
-      if (parsedAmount == null || parsedAmount <= 0) {
-        throw Exception('Invalid amount');
-      }
-
-      // Generate a unique merchantTxnId for each transaction
-      const uuid = Uuid();
-      final merchantTxnId =
-          uuid.v4().replaceAll('-', '').substring(0, 20).toUpperCase();
-
       // Prepare the minimum required payload for JWT-based payment
+      String name,
+      String email,
+      String amount) async {
+    try {
+      final merchantTxnId = generateMerchantTxnId();
+
+      final merchantUniId = generateMerchantUniqueId(); // adjust as needed
+
       final payload = {
-        'merchantTxnId': merchantTxnId,
-        'merchantUniqueId': merchantUniqueId,
-        'paymentData': {
-          'totalAmount': amount,
-          'txnCurrency': 'USD', // Adjust currency as needed
-          'billingData': {
-            'firstName': name.split(' ').first, // Extract first name
-            'lastName': name.split(' ').length > 1 ? name.split(' ').last : '',
-            'emailId': email,
-            // Add other optional fields if needed
+        "merchantTxnId": merchantTxnId,
+        "merchantUniqueId": merchantUniId,
+        "paymentData": {
+          "totalAmount": amount,
+          "txnCurrency": "INR",
+          "billingData": {
+            "emailId": email,
           },
         },
-        'merchantCallBackURL': merchantCallbackUrlIs, // callback URL
+        "merchantCallbackURL":
+            "https://api.uat.payglocal.in/gl/v1/payments/merchantCallback", // Static callback URL
       };
 
       print('Sending JWT request to: $jwtPaymentUrl');
