@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:ui';
@@ -28,7 +29,12 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const PayPage(),
+      initialRoute: '/payment',
+      routes: {
+        '/payment': (context) => const PayPage(),
+        '/refund': (context) => const RefundPage(),
+        '/status': (context) => const StatusPage(),
+      },
     );
   }
 }
@@ -40,6 +46,13 @@ class PayPage extends StatefulWidget {
   State<PayPage> createState() => _PayPageState();
 }
 
+String  ngrokUrl = 'https://3bb8-122-172-85-41.ngrok-free.app';
+   String get jwtPaymentUrl => '$ngrokUrl/api/pay/jwt';
+   String get apiKeyPaymentUrl => '$ngrokUrl/api/pay/apikey';
+   String get statusUrl => '$ngrokUrl/api/status';
+   String get refundUrl => '$ngrokUrl/api/refund';
+   String gid='';
+
 class _PayPageState extends State<PayPage> with SingleTickerProviderStateMixin {
   bool _isLoading = false;
   late AnimationController _waveController;
@@ -47,24 +60,7 @@ class _PayPageState extends State<PayPage> with SingleTickerProviderStateMixin {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController amountController = TextEditingController();
   String _selectedPaymentMethod = 'API Key'; // Default payment method
-
-  // Backend endpoints (replace with your deployed URLs)
-  // static const String apiKeyPaymentUrl = 'http://localhost:3000/api/pay/apikey';
-  // static const String jwtPaymentUrl = 'http://localhost:3000/api/pay/jwt';
-
-//ngrok for external url
-  // static const String ngrokUrl = 'https://ff6d-31-13-189-18.ngrok-free.app';
-  static const String ngrokUrl = 'https://28c1-2401-4900-1f24-3aa8-6cfa-4d3a-d55-953c.ngrok-free.app';
-
-  // API URLs dynamically constructed using the ngrok base URL
-  static String get jwtPaymentUrl => '$ngrokUrl/api/pay/jwt';
-  static String get apiKeyPaymentUrl => '$ngrokUrl/api/pay/apikey';
-  // Merchant Unique ID provided by PayGlocal (replace with your actual merchant ID)
-
-  static String get merchantCallbackUrlIs =>
-      'https://api.uat.payglocal.in/gl/v1/payments/merchantCallback';
-
-  // static const String merchantUniqueId = 'testnewgcc26';
+  String _selectedPage = 'Payment Page'; // Default selected page
 
   @override
   void initState() {
@@ -182,11 +178,13 @@ class _PayPageState extends State<PayPage> with SingleTickerProviderStateMixin {
 //***********************************************************************jwt***********************************************************************************************************************************************
 
 // jwt based
-  Future<void> _handleJwtPayment(
+  Future<void> _handleJwtPayment
+  (
       // Prepare the minimum required payload for JWT-based payment
       String name,
       String email,
-      String amount) async {
+      String amount) async
+       {
     try {
       final merchantTxnId = generateMerchantTxnId();
 
@@ -224,10 +222,13 @@ class _PayPageState extends State<PayPage> with SingleTickerProviderStateMixin {
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
-        final paymentLink = responseData['payment_link'];
+        final  paymentLink= responseData['payment_link'];
+        gid = responseData['gid'];
+
         if (paymentLink == null || paymentLink.isEmpty) {
           throw Exception('No payment link received');
         }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -245,24 +246,68 @@ class _PayPageState extends State<PayPage> with SingleTickerProviderStateMixin {
         } else {
           throw Exception('Could not launch payment link');
         }
-      } else {
-        final errorData = jsonDecode(response.body);
-        throw Exception(
-            'Payment Failed: ${errorData['error'] ?? 'Unknown error'}');
+
+        print('print gid: $gid');
+        print('Calling statusUrl: $statusUrl');
+
+        }
       }
-    } on http.ClientException catch (e) {
-      throw Exception(
-          'Failed to connect to the server. Please check your network and try again.');
-    } catch (error) {
+        catch (error) {
       print('Unexpected error: $error');
       throw Exception('Error: $error');
     }
-  }
+    } 
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(
+      title: const Text('Payment Portal'),
+      backgroundColor: const Color(0xFF5E35B1),
+      actions: [
+        DropdownButton<String>(
+          value: _selectedPage,
+          onChanged: (String? newValue) {
+            if (newValue != null && newValue != _selectedPage) {
+              setState(() {
+                _selectedPage = newValue;
+              });
+              switch (newValue) {
+                case 'Payment Page':
+                  Navigator.pushReplacementNamed(context, '/payment');
+                  break;
+                case 'Refund Page':
+                  Navigator.pushReplacementNamed(context, '/refund');
+                  break;
+                case 'Status Page':
+                  Navigator.pushReplacementNamed(context, '/status');
+                  break;
+              }
+            }
+          },
+          items: const [
+            DropdownMenuItem(
+              value: 'Payment Page',
+              child: Text('Payment Page', style: TextStyle(color: Colors.white)),
+            ),
+            DropdownMenuItem(
+              value: 'Refund Page',
+              child: Text('Refund Page', style: TextStyle(color: Colors.white)),
+            ),
+            DropdownMenuItem(
+              value: 'Status Page',
+              child: Text('Status Page', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+          icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+          dropdownColor: const Color(0xFF5E35B1),
+          style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
+          underline: const SizedBox(),
+        ),
+        const SizedBox(width: 16),
+      ],
+    ),
+    body: Stack(
         fit: StackFit.expand,
         children: [
           AnimatedBuilder(
@@ -568,6 +613,7 @@ class _PayPageState extends State<PayPage> with SingleTickerProviderStateMixin {
 }
 
 class BuiltTextField extends StatefulWidget {
+
   final String label;
   final Icon prefixIcon;
   final TextInputType? keyboardType;
@@ -691,3 +737,985 @@ class WavePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
+
+
+
+//***********************************************************************************************************************************************/
+  //refund page
+
+  // Refund Page
+class RefundPage extends StatefulWidget {
+  const RefundPage({super.key});
+
+  @override
+  _RefundPageState createState() => _RefundPageState();
+}
+
+ class _RefundPageState extends State<RefundPage> {
+  final TextEditingController gidController = TextEditingController();
+  final TextEditingController amountController = TextEditingController();
+  bool _isLoading = false;
+  String? _refundResult;
+  String _refundType = 'Full'; // Default to Full Refund
+
+  Future<void> _requestRefund(String gid) async {
+    print('Requesting refund for GID: $gid, Type: $_refundType');
+    setState(() => _isLoading = true);
+
+    try {
+      final body = _refundType == 'Full'
+          ? {
+              'gid': gid,
+              'refundType': 'F',
+            }
+          : {
+              'gid': gid,
+              'refundType': 'P',
+              'paymentData': {
+                'totalAmount': amountController.text.trim(),
+              },
+            };
+
+      final response = await http
+          .post(
+            Uri.parse(refundUrl),
+            headers: {
+              'Content-Type': 'application/json',
+              'ngrok-skip-browser-warning': 'true',
+            },
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 20), onTimeout: () {
+        throw Exception('Request timed out');
+      });
+
+      print('Refund response code: ${response.statusCode}');
+      print('Refund response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        try {
+          final refundData = jsonDecode(response.body);
+          final refundStatus = refundData['status'] ?? 'unknown';
+          print('Parsed refund status: $refundStatus');
+          if (mounted) {
+            setState(() {
+              _refundResult = 'Refund Status: $refundStatus';
+              _isLoading = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Refund Status: $refundStatus'),
+                backgroundColor: refundStatus.toLowerCase().contains('SENT_FOR_REFUND')
+                    ? Colors.redAccent
+                    : Colors.green
+              ),
+            );
+          }
+        } catch (e) {
+          print('JSON parse error: $e');
+          print('Raw response: ${response.body}');
+          if (mounted) {
+            setState(() {
+              _refundResult = 'Error: Failed to parse response - $e';
+              _isLoading = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error: Failed to parse response - $e'),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
+        }
+      } else {
+        print('Refund request failed: ${response.statusCode}');
+        print('Raw response: ${response.body}');
+        if (mounted) {
+          setState(() {
+            _refundResult = 'Error: Failed to process refund (${response.statusCode})';
+            _isLoading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: Failed to process refund (${response.statusCode})'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('Error requesting refund: $e');
+      if (mounted) {
+        setState(() {
+          _refundResult = 'Error: $e';
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    gidController.dispose();
+    amountController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Refund Portal'),
+        backgroundColor: const Color(0xFF5E35B1),
+        actions: [
+          DropdownButton<String>(
+            value: 'Refund Page',
+            onChanged: (String? newValue) {
+              if (newValue != null) {
+                switch (newValue) {
+                  case 'Payment Page':
+                    Navigator.pushReplacementNamed(context, '/payment');
+                    break;
+                  case 'Refund Page':
+                    break;
+                  case 'Status Page':
+                    Navigator.pushReplacementNamed(context, '/status');
+                    break;
+                }
+              }
+            },
+            items: const [
+              DropdownMenuItem(
+                value: 'Payment Page',
+                child: Text('Payment Page', style: TextStyle(color: Colors.white)),
+              ),
+              DropdownMenuItem(
+                value: 'Refund Page',
+                child: Text('Refund Page', style: TextStyle(color: Colors.white)),
+              ),
+              DropdownMenuItem(
+                value: 'Status Page',
+                child: Text('Status Page', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+            icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+            dropdownColor: const Color(0xFF5E35B1),
+            style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
+            underline: const SizedBox(),
+          ),
+          const SizedBox(width: 16),
+        ],
+      ),
+      body: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          margin: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.3)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 20,
+                spreadRadius: 5,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Refund Request',
+                style: GoogleFonts.inter(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Enter transaction details to initiate a refund.',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  color: Colors.white70,
+                ),
+              ),
+              const SizedBox(height: 24),
+              BuiltTextField(
+                label: 'GID', // kal sir se puchna h
+                prefixIcon: const Icon(Icons.receipt_long, color: Colors.white70),
+                controller: gidController,
+              ),
+              const SizedBox(height: 16),
+             
+              DropdownButton<String>(
+                
+                underline: const SizedBox(),
+                borderRadius: BorderRadius.circular(15),
+                dropdownColor: Color(0xFF5E35B1),
+                value: _refundType,
+                onChanged: (String? newValue) {
+                  if (newValue != null) {
+                    setState(() => _refundType = newValue);
+                  }
+                },
+                items: const [
+                  DropdownMenuItem(
+                    value: 'Full',
+                    child: Padding(
+                      padding: EdgeInsets.all(10.0),
+                      child: Text('Full Refund'),
+                    ),
+                  ),
+                  DropdownMenuItem(
+                    value: 'Partial',
+                    child: Padding(
+                      padding: EdgeInsets.all(10.0),
+                      child: Text('Partial Refund'),
+                    ),
+                  ),
+                ],
+                
+                // isExpanded: false,
+                isExpanded: true,
+                style: GoogleFonts.inter(color: Colors.white70, fontSize: 16),
+              ),
+
+
+
+              if (_refundType == 'Partial') ...[
+                const SizedBox(height: 16),
+                BuiltTextField(
+                  label: 'Refund Amount',
+                  prefixIcon: const Icon(Icons.money_rounded, color: Colors.white30),
+                  controller: amountController,
+                  keyboardType: TextInputType.number,
+                ),
+              ],
+              const SizedBox(height: 24),
+              if (_refundResult != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Text(
+                    _refundResult!,
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              Center(
+                child: ElevatedButton(
+                  onPressed: _isLoading
+                      ? null
+                      : () {
+                          final gid = gidController.text.trim();
+                          if (gid.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Please enter a GID.',
+                                  style: GoogleFonts.inter(color: Colors.white),
+                                ),
+                                backgroundColor: Colors.redAccent,
+                              ),
+                            );
+                            return;
+                          }
+                          if (_refundType == 'Partial' && amountController.text.trim().isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Please enter a refund amount.',
+                                  style: GoogleFonts.inter(color: Colors.white),
+                                ),
+                                backgroundColor: Colors.redAccent,
+                              ),
+                            );
+                            return;
+                          }
+                          _requestRefund(gid);
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF5E35B1),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Text(
+                          'Request Refund',
+                          style: GoogleFonts.inter(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+//******************************************************************************************************************* */
+    
+// Status Page
+
+
+
+// Status Page
+class StatusPage extends StatefulWidget {
+  const StatusPage({super.key});
+
+  @override
+  _StatusPageState createState() => _StatusPageState();
+}
+
+class _StatusPageState extends State<StatusPage> {
+  final TextEditingController gidController = TextEditingController();
+  bool _isLoading = false;
+  String? _statusResult;
+
+  Future<void> _checkStatus(String gid) async {
+    print('Checking status for GID: $gid');
+    setState(() => _isLoading = true);
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$statusUrl?gid=$gid'),
+            headers: {'ngrok-skip-browser-warning': 'true'},
+          )
+          .timeout(const Duration(seconds: 10), onTimeout: () {
+        throw Exception('Request timed out');
+      });
+
+      print('Status response code: ${response.statusCode}');
+      print('Status response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        try {
+          final statusData = jsonDecode(response.body);
+          final paymentStatus = statusData['status'] ?? 'unknown';
+          print('Parsed status: $paymentStatus');
+          if (mounted) {
+            setState(() {
+              _statusResult = 'Status: $paymentStatus';
+              _isLoading = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Status: $paymentStatus'),
+                backgroundColor: paymentStatus == 'SUCCESS' || paymentStatus == 'SENT_FOR_CAPTURE'
+                    ? Colors.green
+                    : Colors.redAccent,
+              ),
+            );
+          }
+        } catch (e) {
+          print('JSON parse error: $e');
+          print('Raw response: ${response.body}');
+          if (mounted) {
+            setState(() {
+              _statusResult = 'Error: Failed to parse response - $e';
+              _isLoading = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error: Failed to parse response - $e'),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
+        }
+      } else {
+        print('Status check failed: ${response.statusCode}');
+        print('Raw response: ${response.body}');
+        if (mounted) {
+          setState(() {
+            _statusResult = 'Error: Failed to fetch status (${response.statusCode})';
+            _isLoading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: Failed to fetch status (${response.statusCode})'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('Error checking status: $e');
+      if (mounted) {
+        setState(() {
+          _statusResult = 'Error: $e';
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    gidController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Status Check'),
+        backgroundColor: const Color(0xFF5E35B1),
+        actions: [
+          DropdownButton<String>(
+            value: 'Status Page',
+            onChanged: (String? newValue) {
+              if (newValue != null) {
+                switch (newValue) {
+                  case 'Payment Page':
+                    Navigator.pushReplacementNamed(context, '/payment');
+                    break;
+                  case 'Refund Page':
+                    Navigator.pushReplacementNamed(context, '/refund');
+                    break;
+                  case 'Status Page':
+                    break;
+                }
+              }
+            },
+            items: const [
+              DropdownMenuItem(
+                value: 'Payment Page',
+                child: Text('Payment Page', style: TextStyle(color: Colors.white)),
+              ),
+              DropdownMenuItem(
+                value: 'Refund Page',
+                child: Text('Refund Page', style: TextStyle(color: Colors.white)),
+              ),
+              DropdownMenuItem(
+                value: 'Status Page',
+                child: Text('Status Page', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+            icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+            dropdownColor: const Color(0xFF5E35B1),
+            style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
+            underline: const SizedBox(),
+          ),
+          const SizedBox(width: 16), 
+        ],
+      ),
+      body: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          margin: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.3)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 20,
+                spreadRadius: 5,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Check Payment Status',
+                style: GoogleFonts.inter(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Enter the GID to check the payment status.',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  color: Colors.white70,
+                ),
+              ),
+              const SizedBox(height: 24),
+              BuiltTextField(
+                label: 'GID',
+                prefixIcon: const Icon(Icons.receipt_long, color: Colors.white70),
+                controller: gidController,
+              ),
+              const SizedBox(height: 24),
+              if (_statusResult != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Text(
+                    _statusResult!,
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              Center(
+                child: ElevatedButton(
+                  onPressed: _isLoading
+                      ? null
+                      : () {
+                          final gid = gidController.text.trim();
+                          if (gid.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Please enter a GID.',
+                                  style: GoogleFonts.inter(color: Colors.white),
+                                ),
+                                backgroundColor: Colors.redAccent,
+                              ),
+                            );
+                            return;
+                          }
+                          _checkStatus(gid);
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF5E35B1),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Text(
+                          'Check Status',
+                          style: GoogleFonts.inter(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+//*************************************************************RRRRRRRRRRRRRRRRRRRRRREEEEEEEEEEEEEEEEFFFFFFFFFFUUUUUUUUUUUUUUUUUUUUUUNNNNNNNNNNNNNNNNNNNNDDDDDDDDDDDDDDDDDD****************************** */
+//refund
+
+
+
+
+// // Assume BuiltTextField is defined elsewhere
+// class _BuiltTextField extends StatelessWidget {
+//   final String label;
+//   final Icon prefixIcon;
+//   final TextEditingController controller;
+//   final TextInputType? keyboardType;
+
+//   const _BuiltTextField({
+//     super.key,
+//     required this.label,
+//     required this.prefixIcon,
+//     required this.controller,
+//     this.keyboardType,
+//   });
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return TextField(
+//       controller: controller,
+//       keyboardType: keyboardType,
+//       style: GoogleFonts.inter(color: Colors.white),
+//       decoration: InputDecoration(
+//         labelText: label,
+//         labelStyle: GoogleFonts.inter(color: Colors.white70),
+//         prefixIcon: prefixIcon,
+//         filled: true,
+//         fillColor: Colors.white.withOpacity(0.1),
+//         border: OutlineInputBorder(
+//           borderRadius: BorderRadius.circular(12),
+//           borderSide: BorderSide.none,
+//         ),
+//       ),
+//     );
+//   }
+// }
+
+// class RefundPage extends StatefulWidget {
+//   const RefundPage({super.key});
+
+//   @override
+//   _RefundPageState createState() => _RefundPageState();
+// }
+
+// class _RefundPageState extends State<RefundPage> {
+//   final TextEditingController merchantTxnIdController = TextEditingController();
+//   final TextEditingController amountController = TextEditingController();
+//   bool _isLoading = false;
+//   String? _refundResult;
+//   String _refundType = 'Full'; // Default to Full Refund
+
+//   Future<void> _requestRefund(String merchantTxnId) async {
+//     print('Requesting refund for Merchant Txn ID: $merchantTxnId, Type: $_refundType');
+//     setState(() => _isLoading = true);
+
+//     try {
+//       final body = _refundType == 'Full'
+//           ? {
+//               'merchantTxnId': merchantTxnId,
+//               'refundType': 'F',
+//             }
+//           : {
+//               'merchantTxnId': merchantTxnId,
+//               'refundType': 'P',
+//               'paymentData': {
+//                 'totalAmount': amountController.text.trim(),
+//               },
+//             };
+
+//       final response = await http
+//           .post(
+//             Uri.parse(refundUrl),
+//             headers: {
+//               'Content-Type': 'application/json',
+//               'ngrok-skip-browser-warning': 'true',
+//             },
+//             body: jsonEncode(body),
+//           )
+//           .timeout(const Duration(seconds: 20), onTimeout: () {
+//         throw Exception('Request timed out');
+//       });
+
+//       print('Refund response code: ${response.statusCode}');
+//       print('Refund response body: ${response.body}');
+
+//       if (response.statusCode == 200) {
+//         try {
+//           final refundData = jsonDecode(response.body);
+//           final refundStatus = refundData['status'] ?? 'unknown';
+//           final refundMessage = refundData['message'] ?? '';
+//           print('Parsed refund status: $refundStatus');
+//           if (mounted) {
+//             setState(() {
+//               _refundResult = 'Refund Status: $refundStatus${refundMessage.isNotEmpty ? ' ($refundMessage)' : ''}';
+//               _isLoading = false;
+//             });
+//             ScaffoldMessenger.of(context).showSnackBar(
+//               SnackBar(
+//                 content: Text('Refund Status: $refundStatus${refundMessage.isNotEmpty ? ' ($refundMessage)' : ''}'),
+//                 backgroundColor: refundStatus.toLowerCase().contains('success') ||
+//                         refundStatus.toLowerCase().contains('initiated')
+//                     ? Colors.green
+//                     : Colors.redAccent,
+//               ),
+//             );
+//           }
+//         } catch (e) {
+//           print('JSON parse error: $e');
+//           print('Raw response: ${response.body}');
+//           if (mounted) {
+//             setState(() {
+//               _refundResult = 'Error: Failed to parse response - $e';
+//               _isLoading = false;
+//             });
+//             ScaffoldMessenger.of(context).showSnackBar(
+//               SnackBar(
+//                 content: Text('Error: Failed to parse response - $e'),
+//                 backgroundColor: Colors.redAccent,
+//               ),
+//             );
+//           }
+//         }
+//       } else {
+//         print('Refund request failed: ${response.statusCode}');
+//         print('Raw response: ${response.body}');
+//         if (mounted) {
+//           setState(() {
+//             _refundResult = 'Error: Failed to process refund (${response.statusCode})';
+//             _isLoading = false;
+//           });
+//           ScaffoldMessenger.of(context).showSnackBar(
+//             SnackBar(
+//               content: Text('Error: Failed to process refund (${response.statusCode})'),
+//               backgroundColor: Colors.redAccent,
+//             ),
+//           );
+//         }
+//       }
+//     } catch (e) {
+//       print('Error requesting refund: $e');
+//       if (mounted) {
+//         setState(() {
+//           _refundResult = 'Error: $e';
+//           _isLoading = false;
+//         });
+//         ScaffoldMessenger.of(context).showSnackBar(
+//           SnackBar(
+//             content: Text('Error: $e'),
+//             backgroundColor: Colors.redAccent,
+//           ),
+//         );
+//       }
+//     }
+//   }
+
+//   @override
+//   void dispose() {
+//     merchantTxnIdController.dispose();
+//     amountController.dispose();
+//     super.dispose();
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       appBar: AppBar(
+//         title: const Text('Refund Portal'),
+//         backgroundColor: const Color(0xFF5E35B1),
+//         actions: [
+//           DropdownButton<String>(
+//             value: 'Refund Page',
+//             onChanged: (String? newValue) {
+//               if (newValue != null) {
+//                 switch (newValue) {
+//                   case 'Payment Page':
+//                     Navigator.pushReplacementNamed(context, '/payment');
+//                     break;
+//                   case 'Refund Page':
+//                     break;
+//                   case 'Status Page':
+//                     Navigator.pushReplacementNamed(context, '/status');
+//                     break;
+//                 }
+//               }
+//             },
+//             items: const [
+//               DropdownMenuItem(
+//                 value: 'Payment Page',
+//                 child: Text('Payment Page', style: TextStyle(color: Colors.white)),
+//               ),
+//               DropdownMenuItem(
+//                 value: 'Refund Page',
+//                 child: Text('Refund Page', style: TextStyle(color: Colors.white)),
+//               ),
+//               DropdownMenuItem(
+//                 value: 'Status Page',
+//                 child: Text('Status Page', style: TextStyle(color: Colors.white)),
+//               ),
+//             ],
+//             icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+//             dropdownColor: const Color(0xFF5E35B1),
+//             style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
+//             underline: const SizedBox(),
+//           ),
+//           const SizedBox(width: 16),
+//         ],
+//       ),
+//       body: Center(
+//         child: Container(
+//           constraints: const BoxConstraints(maxWidth: 400),
+//           margin: const EdgeInsets.symmetric(horizontal: 24),
+//           padding: const EdgeInsets.all(32),
+//           decoration: BoxDecoration(
+//             color: Colors.white.withOpacity(0.15),
+//             borderRadius: BorderRadius.circular(20),
+//             border: Border.all(color: Colors.white.withOpacity(0.3)),
+//             boxShadow: [
+//               BoxShadow(
+//                 color: Colors.black.withOpacity(0.2),
+//                 blurRadius: 20,
+//                 spreadRadius: 5,
+//               ),
+//             ],
+//           ),
+//           child: Column(
+//             mainAxisSize: MainAxisSize.min,
+//             crossAxisAlignment: CrossAxisAlignment.start,
+//             children: [
+//               Text(
+//                 'Refund Request',
+//                 style: GoogleFonts.inter(
+//                   fontSize: 28,
+//                   fontWeight: FontWeight.w800,
+//                   color: Colors.white,
+//                 ),
+//               ),
+//               const SizedBox(height: 16),
+//               Text(
+//                 'Enter transaction details to initiate a refund.',
+//                 style: GoogleFonts.inter(
+//                   fontSize: 16,
+//                   color: Colors.white70,
+//                 ),
+//               ),
+//               const SizedBox(height: 24),
+//               _BuiltTextField(
+//                 label: 'Merchant Transaction ID',
+//                 prefixIcon: const Icon(Icons.receipt_long, color: Colors.white70),
+//                 controller: merchantTxnIdController,
+//               ),
+//               const SizedBox(height: 16),
+//               DropdownButton<String>(
+//                 underline: const SizedBox(),
+//                 borderRadius: BorderRadius.circular(15),
+//                 dropdownColor: const Color(0xFF5E35B1),
+//                 value: _refundType,
+//                 onChanged: (String? newValue) {
+//                   if (newValue != null) {
+//                     setState(() => _refundType = newValue);
+//                   }
+//                 },
+//                 items: const [
+//                   DropdownMenuItem(
+//                     value: 'Full',
+//                     child: Padding(
+//                       padding: EdgeInsets.all(10.0),
+//                       child: Text('Full Refund', style: TextStyle(color: Colors.white)),
+//                     ),
+//                   ),
+//                   DropdownMenuItem(
+//                     value: 'Partial',
+//                     child: Padding(
+//                       padding: EdgeInsets.all(10.0),
+//                       child: Text('Partial Refund', style: TextStyle(color: Colors.white)),
+//                     ),
+//                   ),
+//                 ],
+//                 isExpanded: true,
+//                 style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
+//               ),
+//               if (_refundType == 'Partial') ...[
+//                 const SizedBox(height: 16),
+//                 BuiltTextField(
+//                   label: 'Refund Amount',
+//                   prefixIcon: const Icon(Icons.money_rounded, color: Colors.white70),
+//                   controller: amountController,
+//                   keyboardType: TextInputType.numberWithOptions(decimal: true),
+//                 ),
+//               ],
+//               const SizedBox(height: 24),
+//               if (_refundResult != null)
+//                 Padding(
+//                   padding: const EdgeInsets.only(bottom: 16),
+//                   child: Text(
+//                     _refundResult!,
+//                     style: GoogleFonts.inter(
+//                       fontSize: 16,
+//                       color: Colors.white,
+//                       fontWeight: FontWeight.w500,
+//                     ),
+//                   ),
+//                 ),
+//               Center(
+//                 child: ElevatedButton(
+//                   onPressed: _isLoading
+//                       ? null
+//                       : () {
+//                           final merchantTxnId = merchantTxnIdController.text.trim();
+//                           if (merchantTxnId.isEmpty) {
+//                             ScaffoldMessenger.of(context).showSnackBar(
+//                               SnackBar(
+//                                 content: Text(
+//                                   'Please enter a Merchant Transaction ID.',
+//                                   style: GoogleFonts.inter(color: Colors.white),
+//                                 ),
+//                                 backgroundColor: Colors.redAccent,
+//                               ),
+//                             );
+//                             return;
+//                           }
+//                           if (_refundType == 'Partial') {
+//                             final amount = double.tryParse(amountController.text.trim());
+//                             if (amount == null || amount <= 0) {
+//                               ScaffoldMessenger.of(context).showSnackBar(
+//                                 SnackBar(
+//                                   content: Text(
+//                                     'Please enter a valid refund amount.',
+//                                     style: GoogleFonts.inter(color: Colors.white),
+//                                   ),
+//                                   backgroundColor: Colors.redAccent,
+//                                 ),
+//                               );
+//                               return;
+//                             }
+//                           }
+//                           _requestRefund(merchantTxnId);
+//                         },
+//                   style: ElevatedButton.styleFrom(
+//                     backgroundColor: const Color(0xFF5E35B1),
+//                     foregroundColor: Colors.white,
+//                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+//                     shape: RoundedRectangleBorder(
+//                       borderRadius: BorderRadius.circular(16),
+//                     ),
+//                   ),
+//                   child: _isLoading
+//                       ? const SizedBox(
+//                           width: 24,
+//                           height: 24,
+//                           child: CircularProgressIndicator(
+//                             color: Colors.white,
+//                             strokeWidth: 2,
+//                           ),
+//                         )
+//                       : Text(
+//                           'Request Refund',
+//                           style: GoogleFonts.inter(
+//                             fontSize: 18,
+//                             fontWeight: FontWeight.w700,
+//                           ),
+//                         ),
+//                 ),
+//               ),
+//             ],
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+// }
+
