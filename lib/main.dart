@@ -54,11 +54,18 @@ class _PayPageState extends State<PayPage> with SingleTickerProviderStateMixin {
 
 //ngrok for external url
   // static const String ngrokUrl = 'https://ff6d-31-13-189-18.ngrok-free.app';
-  static const String ngrokUrl = 'https://28c1-2401-4900-1f24-3aa8-6cfa-4d3a-d55-953c.ngrok-free.app';
+  static const String ngrokUrl =
+      'https://2bc7-2401-4900-1cbd-59e7-64d3-a1d6-2f8d-ff7b.ngrok-free.app';
 
-  // API URLs dynamically constructed using the ngrok base URL
-  static String get jwtPaymentUrl => '$ngrokUrl/api/pay/jwt';
-  static String get apiKeyPaymentUrl => '$ngrokUrl/api/pay/apikey';
+  // static String get jwtPaymentUrl => '$ngrokUrl/api/pay/jwt';
+  // static String get jwtPaymentUrl => 'http://localhost:3000/api/pay/jwt';
+
+  static String get jwtPaymentUrl =>    'http://localhost:5002/api/pay/jwt';
+
+  static String get apiKeyPaymentUrl => '/api/pay/apikey';
+  // static String get apiKeyPaymentUrl => 'http://localhost:5002/api/pay/apikey';
+  // static String get apiKeyPaymentUrl => 'http://localhost:3000/api/pay/apikey';
+
   // Merchant Unique ID provided by PayGlocal (replace with your actual merchant ID)
 
   static String get merchantCallbackUrlIs =>
@@ -132,8 +139,7 @@ class _PayPageState extends State<PayPage> with SingleTickerProviderStateMixin {
       };
 
       final response = await http.post(
-        Uri.parse(
-            apiKeyPaymentUrl.trim()), // Replace with your actual backend URL
+        Uri.parse(apiKeyPaymentUrl), // Replace with your actual backend URL
         headers: {
           'Content-Type': 'application/json',
         },
@@ -250,7 +256,7 @@ class _PayPageState extends State<PayPage> with SingleTickerProviderStateMixin {
         throw Exception(
             'Payment Failed: ${errorData['error'] ?? 'Unknown error'}');
       }
-    } on http.ClientException catch (e) {
+    } on http.ClientException {
       throw Exception(
           'Failed to connect to the server. Please check your network and try again.');
     } catch (error) {
